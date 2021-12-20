@@ -50,10 +50,21 @@ class NerDataset(data.Dataset):
     def __len__(self):
         return len(self.sents)
 
+
+    # 函数功能： 获取样本。
+    # 输入： idx是样本序号
+    # 输出： len(words) = len(tags)  # : len(x)==len(y)==len(is_heads)==seqlen
+    # words  原始的单词，未经过tokenizer
+    # x: 经过tokenizer, token对应的id
+    # is_heads: 标识符，token是否有效(经过tokenizer的第一个单词)
+    # tags: word的NER标签 (tokenizer之前的)
+    # y: 经过tokenizer,token的NER标签id
+    # seqlen: seq中token的长度
     def __getitem__(self, idx):
         words, tags = self.sents[idx], self.tags_li[idx] # words, tags: string list
 
         # We give credits only to the first piece.
+        # 因为有些单词经过tokenizer以后，会变成好几个单词(也就是token)，所以：此处是只算第一个单词，其他的算<pad>
         x, y = [], [] # list of ids
         is_heads = [] # list. 1: the token is the first piece of a word
         for w, t in zip(words, tags):
@@ -69,6 +80,7 @@ class NerDataset(data.Dataset):
             is_heads.extend(is_head)
             y.extend(yy)
 
+        # 断言：如果不成立，则执行后面的语句  f"len(x)={len(x)}, len(y)={len(y)}, len(is_heads)={len(is_heads)}
         assert len(x)==len(y)==len(is_heads), f"len(x)={len(x)}, len(y)={len(y)}, len(is_heads)={len(is_heads)}"
 
         # seqlen
@@ -77,9 +89,12 @@ class NerDataset(data.Dataset):
         # to string
         words = " ".join(words)
         tags = " ".join(tags)
+
         return words, x, is_heads, tags, y, seqlen
 
-
+# 函数功能： 给每个batch中的所有样本，赋予max_seq_length，不够的增加<PAD>
+# 输入： batch_size个样本 tuple(batch_size), 每个样本有6个信息，分别是words, x, is_heads, tags, y, seqlen
+# 输出： words, x(已按max_sequence_len增加<PAD>), is_heads, tags, y(已按max_sequence_len增加<PAD>), seqlen
 def pad(batch):
     '''Pads to the longest sample'''
     f = lambda x: [sample[x] for sample in batch]
