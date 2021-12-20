@@ -39,10 +39,15 @@ def train(model, iterator, optimizer, criterion):
         if i%10==0: # monitoring
             print(f"step: {i}, loss: {loss.item()}")
 
+        if i==10:
+            break
+
 def eval(model, iterator, f):
     model.eval()
 
+    # 将所有batch的结果总结到一起
     Words, Is_heads, Tags, Y, Y_hat = [], [], [], [], []
+    # torch.no_grad()是不用反向计算
     with torch.no_grad():
         for i, batch in enumerate(iterator):
             words, x, is_heads, tags, y, seqlens = batch
@@ -52,12 +57,19 @@ def eval(model, iterator, f):
             Words.extend(words)
             Is_heads.extend(is_heads)
             Tags.extend(tags)
+            # tolist() 转为列表
             Y.extend(y.numpy().tolist())
             Y_hat.extend(y_hat.cpu().numpy().tolist())
 
+    #    --- 自己加 --- 强行停止
+            if i == 5:
+                break
+
     ## gets results and save
     with open("temp", 'w') as fout:
+        # zip  所谓“压缩”，其实就是将这些序列中对应位置的元素重新组合，生成一个个新的元组
         for words, is_heads, tags, y_hat in zip(Words, Is_heads, Tags, Y_hat):
+            # 选取head==1的token  去除别的token
             y_hat = [hat for head, hat in zip(is_heads, y_hat) if head == 1]
             preds = [idx2tag[hat] for hat in y_hat]
             assert len(preds)==len(words.split())==len(tags.split())
@@ -69,8 +81,11 @@ def eval(model, iterator, f):
     y_true =  np.array([tag2idx[line.split()[1]] for line in open("temp", 'r').read().splitlines() if len(line) > 0])
     y_pred =  np.array([tag2idx[line.split()[2]] for line in open("temp", 'r').read().splitlines() if len(line) > 0])
 
+    # 去除O标签，其余的预测出来的总标签
     num_proposed = len(y_pred[y_pred>1])
+    # 去除O标签，其余的预测准确的标签
     num_correct = (np.logical_and(y_true==y_pred, y_true>1)).astype(np.int).sum()
+    # 去除O标签，其余的gold标签
     num_gold = len(y_true[y_true>1])
 
     print(f"num_proposed:{num_proposed}")
@@ -124,7 +139,8 @@ if __name__=="__main__":
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    model = Net(hp.top_rnns, len(VOCAB), device, hp.finetuning).cuda()
+    # model = Net(hp.top_rnns, len(VOCAB), device, hp.finetuning).cuda()
+    model = Net(hp.top_rnns, len(VOCAB), device, hp.finetuning).to(device)
     model = nn.DataParallel(model)
 
     train_dataset = NerDataset(hp.trainset)
